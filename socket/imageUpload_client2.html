@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Python websocket image upload and receive</title>
+    <style>
+        #progress-bar {
+            border: 1px solid #ccc;
+            width: 300px;
+            height: 20px;
+            position: relative;
+        }
+
+        #progress-value {
+            height: 100%;
+            width: 0;
+            background-color: green;
+        }
+    </style>
+</head>
+<body>
+    <!-- 파일 업로드할 파일 요소 -->
+    <input type="file" id="imageupload">
+    <button id="uploadClick">이미지 업로드</button> 
+
+    <div id="progress-bar">
+        <div id="progress-value"></div>
+    </div>
+    <span id="progress"></span>
+    <span id="prediction"></span>
+
+    <!-- jQuery 연결 -->
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+
+    <script>
+        $('#uploadClick').on('click', function(){ //파일 업로드 버튼 클릭 시
+            $('#prediction').text(''); //prediction 초기화
+            var file = $("#imageupload")[0].files[0]; 
+            var filename = file.name; //파일 이름 정보 취득
+            var reader = new FileReader();
+            reader.onload = function(e) { //파일 read 시
+                var base64data = reader.result.split(',')[1]; 
+                var webSocket = new WebSocket("ws://165.229.125.137:9998/"); //웹소켓 접속
+                webSocket.onopen = function(){ //접속이 되면 START 를 전송하도록 함
+                    webSocket.send("START");
+                };
+                webSocket.onmessage = function(message){
+                    webSocket.send(message.data);
+                    if(message.data === 'FILENAME'){ //파일이름 요청 시
+                        webSocket.send(filename); //파일 이름 전송
+                    } else if(message.data === 'FILESIZE'){ //파일사이즈 요청 시
+                        webSocket.send(base64data.length);
+                    } else if(message.data === 'DATA'){ //파일데이터 요청 시
+                        webSocket.send(base64data);  
+
+                        var progressPercentage=(base64data.length/base64data.length)*100+'%';
+                        $('#progress-value').width(progressPercentage);
+                        $('#progress').text( base64data.length + ' / ' + base64data.length);
+                    }
+                    else if (message.data !== undefined && message.data !== null) {
+                            $('#prediction').text('예측 : ' + message.data);
+                    }
+                };
+                // 파일 전송이 완료되면 서버로부터 웹 소켓 종료 요청이 온다.
+                webSocket.onclose = function(){
+                    console.log("completed"); //콘솔에서 확인 역할
+                }
+            };
+            reader.readAsDataURL(file);  // 파일에서 읽어옴
+        });
+    </script>
+    
+</body>
+</html>
+
+
